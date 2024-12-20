@@ -1,4 +1,4 @@
-
+/bin/*
 !/bin/html/
 !/bin/config/
 /*.pro.*

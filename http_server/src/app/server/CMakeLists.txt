@@ -7,7 +7,7 @@ get_filename_component(ProjectName ${AbsolutePathProject} NAME)
 # Qt 库
 set(QT_LIBRARY_LIST "Core" "Gui" "Widgets" "Network") 
 # 链接库
-set(SELF_LIBRARY_LIST "qhttpserver")
+#set(SELF_LIBRARY_LIST "qhttpserver")
 # 创建项目
 CreateTarget(${ProjectName} "ExeCMD")
    
