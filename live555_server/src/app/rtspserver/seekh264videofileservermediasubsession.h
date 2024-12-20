@@ -49,7 +49,7 @@ protected:
 
 private:
     float    m_fDurationSeconds; // 视频时长（以秒为单位）
-    unsigned m_getBitrate;       // 比特率 (单位kb/s)
+    unsigned m_getBitrate;       // 比特率 (单位b/s)
 };
 
 #endif //
