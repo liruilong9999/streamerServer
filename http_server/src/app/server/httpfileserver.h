@@ -23,9 +23,9 @@ public:
     // 请求参数
     QString getQueryParameter(const QString & requestStr, const QString & param);
 
-	void sendNotFound(QTcpSocket * socket);
-	void sendHtmlFile(QTcpSocket * socket, QString htmlPath);
-	// 处理文件响应，发送HTTP响应和文件内容
+    void sendNotFound(QTcpSocket * socket);
+    void sendHtmlFile(QTcpSocket * socket, QString htmlPath);
+    // 处理文件响应，发送HTTP响应和文件内容
     void sendHttpResponse(QTcpSocket * socket, const QString & filePath, QByteArray requestData);
 
     // 从配置文件中读取配置
