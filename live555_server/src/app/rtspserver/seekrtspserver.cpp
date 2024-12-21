@@ -8,6 +8,7 @@
 #include <QString>
 #include <QStringList>
 #include <QProcess>
+#include <QFileInfo>
 
 #include "seekrtspserver.h"
 #include "seekh264videofileservermediasubsession.h"
@@ -164,16 +165,23 @@ static ServerMediaSession * createNewSMS(UsageEnvironment & env,
         }
         outFileName = outDirList[0] + "/outdir/" + outDirList[1];
 
-        // 先生成264
-        QString commandQStr = QString("ffmpeg -i ./%1 -c:v copy -an -bsf h264_mp4toannexb -f h264 -y ./%2").arg(fileName).arg(outFileName);
-
-        QProcess process;
-        process.start(commandQStr);
-        process.waitForFinished(-1); // -1 表示等待直到命令执行完成
-        int exitCode = process.exitCode();
-        if (exitCode != 0)
+        QFileInfo fileInfo(outFileName);
+        if (fileInfo.exists() && fileInfo.isFile())
         {
-            return sms;
+        }
+        else
+        {
+            // 先生成264
+            QString commandQStr = QString("ffmpeg -i ./%1 -c:v copy -an -bsf h264_mp4toannexb -f h264 -y ./%2").arg(fileName).arg(outFileName);
+
+            QProcess process;
+            process.start(commandQStr);
+            process.waitForFinished(-1); // -1 表示等待直到命令执行完成
+            int exitCode = process.exitCode();
+            if (exitCode != 0)
+            {
+                return sms;
+            }
         }
 
         // 假设为 H.264 视频元素流文件：
