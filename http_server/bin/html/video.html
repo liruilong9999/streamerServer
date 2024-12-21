@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频文件浏览器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 5px 0;
+        }
+        a {
+            text-decoration: none;
+            color: blue;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        video {
+            max-width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>视频文件浏览器</h1>
+    <div id="file-list">正在加载文件列表...</div>
+    <video id="video-player" controls style="display: none;"></video>
+    <script>
+        const baseUrl = 'http://127.0.0.1:8080'; // 修改为您的服务器地址
+        const fileListUrl = `${baseUrl}/filelist`;
+
+        const fileListDiv = document.getElementById('file-list');
+        const videoPlayer = document.getElementById('video-player');
+
+        async function fetchFileList(path = '') {
+            try {
+                const response = await fetch(`${fileListUrl}${path ? `?path=${path}` : ''}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                renderFileList(data.files, path);
+            } catch (error) {
+                fileListDiv.innerHTML = `<p style="color:red;">无法加载文件列表：${error.message}</p>`;
+                console.error('文件列表加载错误:', error);
+            }
+        }
+
+        function renderFileList(files, currentPath) {
+            fileListDiv.innerHTML = ''; // 清空之前的内容
+            const list = document.createElement('ul');
+
+            // 显示返回上级目录的链接
+            if (currentPath) {
+                const parentPath = currentPath.split('/').slice(0, -1).join('/');
+                const item = document.createElement('li');
+                item.innerHTML = `<a href="#" data-path="${parentPath}">返回上级目录</a>`;
+                list.appendChild(item);
+            }
+
+            // 显示文件和文件夹
+            files.forEach(file => {
+                const item = document.createElement('li');
+                if (file.isDir) {
+                    item.innerHTML = `<a href="#" data-path="${currentPath ? currentPath + '/' : ''}${file.name}">${file.name}/</a>`;
+                } else if (file.name.endsWith('.mp4')) {
+                    item.innerHTML = `<a href="#" data-video="${currentPath ? currentPath + '/' : ''}${file.name}">${file.name}</a>`;
+                } else {
+                    item.textContent = file.name;
+                }
+                list.appendChild(item);
+            });
+
+            fileListDiv.appendChild(list);
+
+            // 添加事件监听器
+            fileListDiv.querySelectorAll('a[data-path]').forEach(link => {
+                link.addEventListener('click', event => {
+                    event.preventDefault();
+                    const path = link.getAttribute('data-path');
+                    fetchFileList(path);
+                });
+            });
+
+            fileListDiv.querySelectorAll('a[data-video]').forEach(link => {
+                link.addEventListener('click', event => {
+                    event.preventDefault();
+                    const videoPath = link.getAttribute('data-video');
+                    playVideo(videoPath);
+                });
+            });
+        }
+
+        function playVideo(path) {
+            videoPlayer.src = `${baseUrl}/${path}`;
+            videoPlayer.style.display = 'block';
+            videoPlayer.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 初始加载文件列表
+        fetchFileList();
+    </script>
+</body>
+</html>

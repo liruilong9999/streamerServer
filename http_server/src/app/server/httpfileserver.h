@@ -19,14 +19,20 @@ public:
     // 启动服务器，通过配置文件获取路径和端口
     void startServer();
 
-    // 处理文件响应，发送HTTP响应和文件内容
+    QString getRequestedFile(const QString & requestStr);
+    // 请求参数
+    QString getQueryParameter(const QString & requestStr, const QString & param);
+
+	void sendNotFound(QTcpSocket * socket);
+	void sendHtmlFile(QTcpSocket * socket, QString htmlPath);
+	// 处理文件响应，发送HTTP响应和文件内容
     void sendHttpResponse(QTcpSocket * socket, const QString & filePath, QByteArray requestData);
 
     // 从配置文件中读取配置
     void loadSettings();
 
     // 处理文件列表请求并返回 JSON 格式的文件结构
-    void sendFileList(QTcpSocket * socket);
+    void sendFileList(QTcpSocket * socket, const QString & path);
 
     QJsonArray getFileListFromDir(const QString & dirPath);
 
