@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频文件浏览器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 5px 0;
+        }
+        a {
+            text-decoration: none;
+            color: blue;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>视频文件浏览器</h1>
+    <div id="file-list">正在加载文件列表...</div>
+
+    <script>
+        const baseUrl = `${window.location.protocol}//${window.location.host}`; // 动态获取服务器地址
+        const fileListUrl = `${baseUrl}/filelist`;
+
+        const fileListDiv = document.getElementById('file-list');
+
+        // 获取文件列表
+        async function fetchFileList(path = '') {
+            try {
+                const response = await fetch(`${fileListUrl}${path ? `?path=${path}` : ''}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                renderFileList(data.files, path);
+            } catch (error) {
+                fileListDiv.innerHTML = `<p style="color:red;">无法加载文件列表：${error.message}</p>`;
+                console.error('文件列表加载错误:', error);
+            }
+        }
+
+        // 渲染文件列表
+        function renderFileList(files, currentPath) {
+            fileListDiv.innerHTML = ''; // 清空之前的内容
+            const list = document.createElement('ul');
+
+            // 返回上级目录链接
+            if (currentPath) {
+                const parentPath = currentPath.split('/').slice(0, -1).join('/');
+                const item = document.createElement('li');
+                item.innerHTML = `<a href="#" data-path="${parentPath}">返回上级目录</a>`;
+                list.appendChild(item);
+            }
+
+            // 显示文件和文件夹
+            files.forEach(file => {
+                const item = document.createElement('li');
+                if (file.isDir) {
+                    item.innerHTML = `<a href="#" data-path="${currentPath ? currentPath + '/' : ''}${file.name}">${file.name}/</a>`;
+                } else if (file.name.endsWith('.mp4')) {
+                    // 直接跳转到 video.html 播放视频
+                    item.innerHTML = `<a href="video.html?path=${encodeURIComponent(currentPath ? currentPath + '/' : '' + file.name)}">${file.name}</a>`;
+                } else {
+                    item.textContent = file.name;
+                }
+                list.appendChild(item);
+            });
+
+            fileListDiv.appendChild(list);
+
+            // 添加点击事件，切换目录
+            fileListDiv.querySelectorAll('a[data-path]').forEach(link => {
+                link.addEventListener('click', event => {
+                    event.preventDefault();
+                    const path = link.getAttribute('data-path');
+                    fetchFileList(path);
+                });
+            });
+        }
+
+        // 初始加载文件列表
+        fetchFileList();
+    </script>
+</body>
+</html>
