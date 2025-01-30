@@ -1,8 +1,0 @@
-/bin/*
-!/bin/config/
-/*.pro.*
-/build/*
-/*build*/*
-/.vs*
-# Qt Creator
-CMakeLists.txt.user
