@@ -10,11 +10,13 @@ extern "C"
 #include <libavformat/avformat.h>
 }
 
+#include <SDL2/SDL.h>
+
 #include "playerthread.h"
 
-PlayerThread::PlayerThread(CircularQueue<QImage> & imageQueue, QObject * parent)
+PlayerThread::PlayerThread(CircularQueue<AVFrame *> & frameQueue, QObject * parent)
     : QThread(parent)
-    , m_imageQueue(imageQueue)
+    , m_frameQueue(frameQueue)
 {
 }
 
@@ -25,10 +27,11 @@ PlayerThread::~PlayerThread()
 
 void PlayerThread::stop()
 {
+    m_isOpened = false;
     requestInterruption();
     wait();
 
-    m_imageQueue.stop();
+    m_frameQueue.stop();
 
     if (m_pCodecContext)
     {
@@ -44,16 +47,132 @@ void PlayerThread::stop()
     }
 }
 
-bool PlayerThread::openUrl(QString url, int & duration)
+bool PlayerThread::openUrl(QString url, int & duration, int & fps)
 {
+    m_isOpened = false;
     stop();
 
-    m_imageQueue.start();
+    m_isOpened = openUrlRTSP(url, duration, fps);
+
+    start();
+    return m_isOpened;
+}
+
+void PlayerThread::seeToTime(double percent)
+{
+    m_frameQueue.clear();
+    double seconds = (m_duration / 1000000.0) * (percent);
+    m_seekTime.store(seconds * AV_TIME_BASE);
+}
+
+void PlayerThread::decode()
+{
+    AVPacket * packet = av_packet_alloc();
+    AVFrame *  frame  = av_frame_alloc();
+
+    while (!isInterruptionRequested())
+    {
+        int seektime = m_seekTime.load();
+        // 处理跳转请求
+        if (seektime >= 0 && seektime < m_duration)
+        {
+            int64_t targetPts = av_rescale_q(
+                seektime, AVRational{1, AV_TIME_BASE}, m_pFormatContext->streams[m_videoStreamIndex]->time_base);
+
+            if (av_seek_frame(m_pFormatContext, m_videoStreamIndex, targetPts, AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_ANY) < 0)
+            {
+                qDebug() << "跳转时间戳失败:" << targetPts;
+
+                m_seekTime.store(-1);
+                continue;
+            }
+
+            avcodec_flush_buffers(m_pCodecContext);
+            m_seekTime.store(-1);
+        }
+
+        int readFrameResult = av_read_frame(m_pFormatContext, packet);
+        if (readFrameResult >= 0)
+        {
+            if (packet->stream_index == m_videoStreamIndex)
+            {
+                if (avcodec_send_packet(m_pCodecContext, packet) < 0)
+                {
+                    qDebug() << "发送包到解码器失败。";
+                    av_packet_unref(packet);
+                    break;
+                }
+
+                while (true)
+                {
+                    int receiveResult = avcodec_receive_frame(m_pCodecContext, frame);
+                    if (receiveResult == AVERROR(EAGAIN))
+                    {
+                        break;
+                    }
+                    else if (receiveResult == AVERROR_EOF)
+                    {
+                        qDebug() << "流结束(EOF)";
+                        break;
+                    }
+                    else if (receiveResult < 0)
+                    {
+                        qDebug() << "帧解码失败:" << receiveResult;
+                        break;
+                    }
+
+                    if (!m_frameQueue.isStopped())
+                    {
+                        // QImage img = convertFrameToQImage(frame, m_pCodecContext);
+                        AVFrame * yuvFrame = av_frame_clone(frame);
+                        m_frameQueue.enqueue(yuvFrame);
+                    }
+                }
+            }
+            av_packet_unref(packet);
+        }
+        else if (readFrameResult == AVERROR_EOF)
+        {
+            qDebug() << "文件结束。";
+            break;
+        }
+        else if (readFrameResult == AVERROR(EIO) || readFrameResult == AVERROR(ENOMEM))
+        {
+            // 如果是 RTSP 连接错误或内存不足，尝试重连
+            qDebug() << "RTSP 连接丢失或内存不足，尝试重新连接...";
+            break;
+        }
+        else
+        {
+            qDebug() << "读取包失败:" << readFrameResult;
+        }
+
+        usleep(1000);
+    }
+
+    av_frame_free(&frame);
+    av_packet_free(&packet);
+    emit videoStopped();
+    m_isOpened = false;
+}
+
+void PlayerThread::run()
+{
+    if (m_isOpened)
+    {
+        decode();
+    }
+}
+
+bool PlayerThread::openUrlRTSP(QString url, int & duration, int & fps)
+{
+    m_frameQueue.start();
+    m_frameQueue.clear();
     av_log_set_level(AV_LOG_QUIET);
     m_filePath = url.toStdString();
 
     AVDictionary * options = nullptr;
-    av_dict_set(&options, "stimeout", "10000000", 0); // 5秒超时
+    av_dict_set(&options, "stimeout", "10*1000*1000", 0); // 设置网络连接超时
 
     // 打开视频文件
     if (avformat_open_input(&m_pFormatContext, m_filePath.c_str(), nullptr, &options) < 0)
@@ -91,7 +210,11 @@ bool PlayerThread::openUrl(QString url, int & duration)
         qDebug() << "未找到视频流。";
         return false;
     }
+    // 获取视频流的帧率
+    AVStream * pVideoStream = m_pFormatContext->streams[m_videoStreamIndex];
+    AVRational frameRate    = pVideoStream->avg_frame_rate;
 
+    fps = (int)(frameRate.num / (float)frameRate.den); // 帧率
     // 获取解码器
     AVCodecParameters * codecParams = m_pFormatContext->streams[m_videoStreamIndex]->codecpar;
     m_pCodec                        = avcodec_find_decoder(codecParams->codec_id);
@@ -115,164 +238,5 @@ bool PlayerThread::openUrl(QString url, int & duration)
         return false;
     }
 
-    start();
     return true;
-}
-
-void PlayerThread::seeToTime(int percent)
-{
-    double seconds = (m_duration / 1000000.0) * (percent / 100.0);
-    m_seekTime.store(seconds * AV_TIME_BASE);
-}
-
-void PlayerThread::decode()
-{
-    AVPacket * packet = av_packet_alloc();
-    AVFrame *  frame  = av_frame_alloc();
-
-    while (!isInterruptionRequested())
-    {
-        int seektime = m_seekTime.load();
-        // 处理跳转请求
-        if (seektime >= 0)
-        {
-            int64_t targetPts = av_rescale_q(
-                seektime, AVRational{1, AV_TIME_BASE}, m_pFormatContext->streams[m_videoStreamIndex]->time_base);
-
-            if (targetPts < 0 || targetPts >= m_pFormatContext->streams[m_videoStreamIndex]->duration)
-            {
-                if (av_seek_frame(m_pFormatContext, m_videoStreamIndex, targetPts, AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_ANY) < 0)
-                {
-                    qDebug() << "跳转时间戳失败:" << targetPts;
-
-                    m_seekTime.store(-1);
-                    continue;
-                }
-
-                seektime = -1;
-                m_seekTime.store(-1);
-                continue;
-            }
-            else
-            {
-                if (av_seek_frame(m_pFormatContext, m_videoStreamIndex, targetPts, AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_ANY) < 0)
-                {
-                    qDebug() << "跳转时间戳失败:" << targetPts;
-
-                    m_seekTime.store(-1);
-                    continue;
-                }
-            }
-
-            avcodec_flush_buffers(m_pCodecContext);
-            m_seekTime.store(-1);
-        }
-
-        int readFrameResult = av_read_frame(m_pFormatContext, packet);
-        if (readFrameResult >= 0)
-        {
-            if (packet->stream_index == m_videoStreamIndex)
-            {
-                if (avcodec_send_packet(m_pCodecContext, packet) < 0)
-                {
-                    qDebug() << "发送包到解码器失败。";
-                    av_packet_unref(packet);
-                    break;
-                }
-
-                while (true)
-                {
-                    int receiveResult = avcodec_receive_frame(m_pCodecContext, frame);
-                    if (receiveResult == AVERROR(EAGAIN))
-                    {
-                        break;
-                    }
-                    else if (receiveResult == AVERROR_EOF)
-                    {
-                        qDebug() << "流结束(EOF)";
-                        break;
-                    }
-                    else if (receiveResult < 0)
-                    {
-                        qDebug() << "帧解码失败:" << receiveResult;
-                        break;
-                    }
-
-                    if (!m_imageQueue.isStopped())
-                    {
-                        QImage img = convertFrameToQImage(frame, m_pCodecContext);
-                        m_imageQueue.enqueue(img);
-                    }
-                }
-            }
-            av_packet_unref(packet);
-        }
-        else if (readFrameResult == AVERROR_EOF)
-        {
-            qDebug() << "文件结束。";
-            break;
-        }
-        else
-        {
-            qDebug() << "读取包失败:" << readFrameResult;
-        }
-
-        usleep(1000);
-    }
-
-    av_frame_free(&frame);
-    av_packet_free(&packet);
-}
-
-void PlayerThread::run()
-{
-    decode();
-}
-
-QImage PlayerThread::convertFrameToQImage(AVFrame * pFrame, AVCodecContext * pCodecContext)
-{
-    int width  = pCodecContext->width;
-    int height = pCodecContext->height;
-
-    int       numBytes  = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
-    uint8_t * rgbBuffer = (uint8_t *)av_malloc(numBytes);
-
-    if (!rgbBuffer)
-    {
-        qDebug() << "分配RGB缓冲区失败。";
-        return QImage();
-    }
-
-    SwsContext * swsContext = sws_getContext(
-        width, height, (AVPixelFormat)pFrame->format, width, height, AV_PIX_FMT_RGB24, SWS_BILINEAR, nullptr, nullptr, nullptr);
-
-    if (!swsContext)
-    {
-        qDebug() << "创建SWS上下文失败。";
-        av_free(rgbBuffer);
-        return QImage();
-    }
-
-    uint8_t * dst[4]       = {rgbBuffer, nullptr, nullptr, nullptr};
-    int       dstStride[4] = {3 * width, 0, 0, 0};
-    int       ret          = sws_scale(swsContext, pFrame->data, pFrame->linesize, 0, height, dst, dstStride);
-
-    if (ret < 0)
-    {
-        qDebug() << "帧转换为RGB失败。";
-        av_free(rgbBuffer);
-        sws_freeContext(swsContext);
-        return QImage();
-    }
-
-    QImage qImage(rgbBuffer, width, height, QImage::Format_RGB888);
-
-    // 深拷贝 QImage 数据
-    QImage result = qImage.copy();
-
-    // 释放内存
-    av_free(rgbBuffer);
-    sws_freeContext(swsContext);
-
-    return result;
 }

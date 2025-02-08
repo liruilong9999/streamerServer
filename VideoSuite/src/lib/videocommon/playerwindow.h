@@ -15,7 +15,7 @@ namespace Ui {
 class PlayerWindow;
 }
 
-class SwsContext;
+struct PlayerWindowPrivate;
 
 /// <summary>
 /// 播放器窗口
@@ -41,36 +41,35 @@ public:
     bool openUrl(QString url);
 
 protected:
-    // 重写 paintEvent 进行绘制
-    void paintEvent(QPaintEvent * event) override;
     void contextMenuEvent(QContextMenuEvent * event) override;
 
 private slots:
-    void onSliderVideochanged(int pos);
     void onTimerUpdate();
-
-    // 音频暂时不做处理
-    //  void onSliderVoicechanged(int pos);
-    //  void onBtnPauseClicked();
-    //  void onBtnVoiceClicked();
 
 private:
     Ui::PlayerWindow * ui;
 
-    AVFormatContext * m_pFormatContext{nullptr}; // FFmpeg 格式上下文
-    AVCodecContext *  m_pCodecContext{nullptr};  // FFmpeg 编解码上下文
-    SwsContext *      m_pSwsContext{nullptr};    // 图像转换上下文
-    PlayerThread *    m_pPlayerThread{nullptr};  // 解码线程
-    QTimer *          m_pFrameTimer{nullptr};    // 帧定时器，用于定时读取帧图片
+    PlayerWindowPrivate * m_pPrivate{nullptr};
+
+    PlayerThread * m_pPlayerThread{nullptr}; // 解码线程
+    QTimer *       m_pFrameTimer{nullptr};   // 帧定时器，用于定时读取帧图片
+
+    int m_videoWidth{0};
+    int m_videoHeight{0};
 
     int  m_videoStreamIndex{-1}; // 视频流索引
     bool m_isPlaying{false};     // 播放状态
 
-    QImage                m_CurrentImage;  // 当前显示的图像
-    CircularQueue<QImage> m_imageQueue{6}; // 帧图片队列
+    CircularQueue<AVFrame *> m_frameQueue{6}; // 帧队列
 
-    bool m_isUseRightMouse{false}; // 是否使用右键菜单
-    int  m_duration{0};            // 视频时长（秒）
+    bool   m_isUseRightMouse{false}; // 是否使用右键菜单
+    int    m_duration{0};            // 视频时长（秒）
+    int    m_fps{30};                // 视频帧率
+    double m_currentPosition{0.0};   // 当前播放位置（秒）
+
+    unsigned m_frameSpace{40}; // 帧间隔（毫秒）
+
+    bool m_spliderPressed{false}; // 滑块按下状态
 };
 
 #endif // PLAYERWINDOW_H

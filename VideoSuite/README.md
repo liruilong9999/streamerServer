@@ -16,6 +16,8 @@ opencv4.10.0
 
 ffmpeg 4.3.1
 
+SDL2.30.12
+
 
 
 ## ffmpeg笔记

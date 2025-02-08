@@ -48,7 +48,7 @@ void VideoCaptureManager::startCapture(const QString & inputUrl)
     }
     if (!inputUrl.contains("rtsp://"))
     {
-        qDebug() << "只能保存网络流媒体文件，不能保存本地文件。";
+        qDebug() << "只能保存RTSP网络流媒体文件，不能保存本地文件。";
         return;
     }
     m_inputUrl = inputUrl;
@@ -74,10 +74,10 @@ void VideoCaptureManager::run()
     AVPacket          packet;
 
     // 设置打开输入流的选项
-    av_dict_set(&options, "stimeout", "10000000", 0);   // 10秒超时
-    av_dict_set(&options, "rtsp_transport", "tcp", 0);  // 使用TCP
-    av_dict_set(&options, "max_delay", "500000", 0);    // 设置最大延迟
-    av_dict_set(&options, "buffer_size", "1024000", 0); // 增加缓冲区大小
+    av_dict_set(&options, "stimeout", "10*1000*1000", 0); // 10秒超时
+    av_dict_set(&options, "rtsp_transport", "tcp", 0);    // 使用TCP
+    av_dict_set(&options, "max_delay", "500000", 0);      // 设置最大延迟
+    av_dict_set(&options, "buffer_size", "1024000", 0);   // 增加缓冲区大小
 
     // 打开输入流
     int ret = avformat_open_input(&inputCtx, m_inputUrl.toStdString().c_str(), nullptr, &options);
@@ -97,7 +97,6 @@ void VideoCaptureManager::run()
         return;
     }
 
-    double fps = 30;
     // 获取视频流的帧率
     for (unsigned int i = 0; i < inputCtx->nb_streams; ++i)
     {
@@ -105,20 +104,20 @@ void VideoCaptureManager::run()
         if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             // 获取视频流的帧率
-            fps = av_q2d(stream->avg_frame_rate);
+            m_fps = av_q2d(stream->avg_frame_rate);
             break;
         }
     }
 
     // 获取流的帧率并计算目标帧数
-    if (fps <= 0)
+    if (m_fps <= 0)
     {
         qDebug() << "无效的视频流。";
         avformat_close_input(&inputCtx);
         return;
     }
 
-    int     targetFrameCount = static_cast<int>(m_segmentDuration * fps);
+    int     targetFrameCount = static_cast<int>(m_segmentDuration * m_fps);
     int64_t segmentStartPts  = AV_NOPTS_VALUE; // 记录每段视频的起始 PTS
 
     while (m_isRunning)
@@ -189,9 +188,27 @@ void VideoCaptureManager::run()
         }
 
         // 读取并写入指定帧数的流数据
+        bool foundKeyFrame = false;
         while (av_read_frame(inputCtx, &packet) >= 0 && framesCaptured < targetFrameCount)
         {
-            AVStream * inStream  = inputCtx->streams[packet.stream_index];
+            AVStream * inStream = inputCtx->streams[packet.stream_index];
+            if (inStream->codecpar->codec_type != AVMEDIA_TYPE_VIDEO)
+            {
+                av_packet_unref(&packet);
+                continue;
+            }
+            // 如果是视频流，检查是否为关键帧
+            if (!foundKeyFrame)
+            {
+                if (!(packet.flags & AV_PKT_FLAG_KEY))
+                {
+                    av_packet_unref(&packet);
+                    continue;
+                }
+                foundKeyFrame = true;
+
+            }
+
             AVStream * outStream = outputCtx->streams[packet.stream_index];
 
             // 跳过无效时间戳的帧
@@ -222,7 +239,7 @@ void VideoCaptureManager::run()
         if (framesCaptured > 0)
         {
             AVStream * firstStream = inputCtx->streams[0];
-            segmentStartPts += targetFrameCount * firstStream->time_base.den / (fps * firstStream->time_base.num);
+            segmentStartPts += targetFrameCount * firstStream->time_base.den / (m_fps * firstStream->time_base.num);
         }
 
         // 写入文件尾并清理
