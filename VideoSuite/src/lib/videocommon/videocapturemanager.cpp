@@ -218,10 +218,14 @@ void VideoCaptureManager::run()
                 continue;
             }
 
+            // rnd 用于对时间戳进行舍入
+            AVRounding rnd = (AVRounding)(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+
             // 将时间戳重置为相对值
-            packet.pts      = av_rescale_q(packet.pts - segmentStartPts, inStream->time_base, outStream->time_base);
-            packet.dts      = av_rescale_q(packet.dts - segmentStartPts, inStream->time_base, outStream->time_base);
+            packet.pts      = av_rescale_q_rnd(packet.pts - segmentStartPts, inStream->time_base, outStream->time_base, rnd);
+            packet.dts      = av_rescale_q_rnd(packet.dts - segmentStartPts, inStream->time_base, outStream->time_base, rnd);
             packet.duration = av_rescale_q(packet.duration, inStream->time_base, outStream->time_base);
+
             packet.pos      = -1;
 
             // 写入帧到输出文件
