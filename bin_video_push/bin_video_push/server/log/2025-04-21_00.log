@@ -1,0 +1,76 @@
+2025-04-21 09:00:57.186 I [MediaServer.exe] [8856-13144] main.cpp:261 start_main | ZLMediaKit(git hash:b8cb895/2023-10-13T15:26:31+08:00,branch:master,build time:2023-10-15T01:57:54)
+2025-04-21 09:00:57.211 D [MediaServer.exe] [8856-stamp thread] util.cpp:366 operator () | Stamp thread started
+2025-04-21 09:00:57.216 I [MediaServer.exe] [8856-13144] EventPoller.cpp:470 EventPollerPool | EventPoller created size: 16
+2025-04-21 09:00:57.217 I [MediaServer.exe] [8856-13144] TcpServer.cpp:214 start_l | TCP server listening on [::]: 5541
+2025-04-21 09:00:57.217 I [MediaServer.exe] [8856-13144] TcpServer.cpp:214 start_l | TCP server listening on [::]: 1936
+2025-04-21 09:00:57.217 I [MediaServer.exe] [8856-13144] TcpServer.cpp:214 start_l | TCP server listening on [::]: 8080
+2025-04-21 09:00:57.218 I [MediaServer.exe] [8856-13144] UdpServer.cpp:108 start_l | UDP server bind to [::]: 9000
+2025-04-21 09:00:57.218 I [MediaServer.exe] [8856-13144] main.cpp:411 start_main | 已启动http api 接口
+2025-04-21 09:00:57.218 I [MediaServer.exe] [8856-13144] main.cpp:413 start_main | 已启动http hook 接口
+2025-04-21 09:00:58.335 W [MediaServer.exe] [8856-event poller 0] RtspSession.cpp:64 onError | 1-796(127.0.0.1:53634) RTSP播放器(//)断开:end of file,耗时(s):0
+2025-04-21 09:00:58.567 W [MediaServer.exe] [8856-event poller 0] RtspSession.cpp:64 onError | 2-796(127.0.0.1:53639) RTSP播放器(//)断开:end of file,耗时(s):0
+2025-04-21 09:00:58.657 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注册:rtsp://__defaultVhost__/stream/V1
+2025-04-21 09:00:58.670 D [MediaServer.exe] [8856-event poller 0] MediaSink.cpp:150 emitAllTrackReady | All track ready use 19ms
+2025-04-21 09:00:58.670 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注册:fmp4://__defaultVhost__/stream/V1
+2025-04-21 09:00:58.670 I [MediaServer.exe] [8856-event poller 0] MultiMediaSourceMuxer.cpp:444 onAllTrackReady | stream: rtsp://127.0.0.1:5541/stream/V1 , codec info: H264[640/360/25] mpeg4-generic[44100/2/16] 
+2025-04-21 09:00:58.670 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注册:rtmp://__defaultVhost__/stream/V1
+2025-04-21 09:00:58.670 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注册:ts://__defaultVhost__/stream/V1
+2025-04-21 09:00:58.764 W [MediaServer.exe] [8856-event poller 1] RtspSession.cpp:64 onError | 4-804(127.0.0.1:53645) RTSP播放器(//)断开:end of file,耗时(s):0
+2025-04-21 09:00:58.784 W [MediaServer.exe] [8856-event poller 1] RtspSession.cpp:64 onError | 6-812(127.0.0.1:53647) RTSP播放器(//)断开:end of file,耗时(s):0
+2025-04-21 09:00:58.879 D [MediaServer.exe] [8856-event poller 1] MediaSink.cpp:150 emitAllTrackReady | All track ready use 109ms
+2025-04-21 09:00:58.879 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注册:fmp4://__defaultVhost__/stream/V4
+2025-04-21 09:00:58.879 I [MediaServer.exe] [8856-event poller 1] MultiMediaSourceMuxer.cpp:444 onAllTrackReady | stream: rtsp://127.0.0.1:5541/stream/V4 , codec info: H264[1920/1080/25] mpeg4-generic[8000/1/16] 
+2025-04-21 09:00:58.879 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注册:rtmp://__defaultVhost__/stream/V4
+2025-04-21 09:00:58.879 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注册:ts://__defaultVhost__/stream/V4
+2025-04-21 09:00:58.879 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注册:rtsp://__defaultVhost__/stream/V4
+2025-04-21 09:00:59.053 W [MediaServer.exe] [8856-event poller 2] RtspSession.cpp:64 onError | 8-820(127.0.0.1:53652) RTSP播放器(//)断开:end of file,耗时(s):0
+2025-04-21 09:00:59.138 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:rtsp://__defaultVhost__/stream/V5
+2025-04-21 09:00:59.157 D [MediaServer.exe] [8856-event poller 2] MediaSink.cpp:150 emitAllTrackReady | All track ready use 29ms
+2025-04-21 09:00:59.157 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:fmp4://__defaultVhost__/stream/V5
+2025-04-21 09:00:59.158 I [MediaServer.exe] [8856-event poller 2] MultiMediaSourceMuxer.cpp:444 onAllTrackReady | stream: rtsp://127.0.0.1:5541/stream/V5 , codec info: H264[1280/720/25] mpeg4-generic[44100/2/16] 
+2025-04-21 09:00:59.158 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:rtmp://__defaultVhost__/stream/V5
+2025-04-21 09:00:59.158 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:ts://__defaultVhost__/stream/V5
+2025-04-21 09:01:00.597 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注册:hls://__defaultVhost__/stream/V1
+2025-04-21 09:01:00.915 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注册:hls://__defaultVhost__/stream/V4
+2025-04-21 09:01:01.060 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:hls://__defaultVhost__/stream/V5
+2025-04-21 09:01:07.096 W [MediaServer.exe] [8856-event poller 2] Stamp.cpp:298 getNtpStampUS | rtp stamp abnormal reduced:3232492312 -> 3231764062
+2025-04-21 09:01:07.096 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:rtsp://__defaultVhost__/stream/V3
+2025-04-21 09:01:07.127 W [MediaServer.exe] [8856-event poller 2] Stamp.cpp:298 getNtpStampUS | rtp stamp abnormal reduced:4114810281 -> 4114451616
+2025-04-21 09:01:07.127 D [MediaServer.exe] [8856-event poller 2] MediaSink.cpp:150 emitAllTrackReady | All track ready use 8154ms
+2025-04-21 09:01:07.127 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:fmp4://__defaultVhost__/stream/V3
+2025-04-21 09:01:07.127 I [MediaServer.exe] [8856-event poller 2] MultiMediaSourceMuxer.cpp:444 onAllTrackReady | stream: rtsp://127.0.0.1:5541/stream/V3 , codec info: H264[856/480/30] mpeg4-generic[44100/2/16] 
+2025-04-21 09:01:07.127 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:rtmp://__defaultVhost__/stream/V3
+2025-04-21 09:01:07.127 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:ts://__defaultVhost__/stream/V3
+2025-04-21 09:01:11.981 W [MediaServer.exe] [8856-event poller 3] HttpSession.cpp:169 onError | 11-824(127.0.0.1:53663) FLV/TS/FMP4播放器(__defaultVhost__/stream/V3)断开:5(recv close request from client),耗时(s):4
+2025-04-21 09:01:11.981 W [MediaServer.exe] [8856-event poller 4] HttpSession.cpp:169 onError | 13-840(127.0.0.1:53665) FLV/TS/FMP4播放器(__defaultVhost__/stream/V5)断开:5(recv close request from client),耗时(s):4
+2025-04-21 09:01:11.981 W [MediaServer.exe] [8856-event poller 3] HttpSession.cpp:169 onError | 10-812(127.0.0.1:53662) FLV/TS/FMP4播放器(__defaultVhost__/stream/V1)断开:5(recv close request from client),耗时(s):4
+2025-04-21 09:01:11.981 W [MediaServer.exe] [8856-event poller 4] HttpSession.cpp:169 onError | 12-836(127.0.0.1:53664) FLV/TS/FMP4播放器(__defaultVhost__/stream/V4)断开:5(recv close request from client),耗时(s):4
+2025-04-21 09:01:12.118 W [MediaServer.exe] [8856-event poller 2] Stamp.cpp:298 getNtpStampUS | rtp stamp abnormal reduced:4115031399 -> 4114671776
+2025-04-21 09:01:12.130 W [MediaServer.exe] [8856-event poller 2] Stamp.cpp:298 getNtpStampUS | rtp stamp abnormal reduced:3232945372 -> 3232217062
+2025-04-21 09:01:15.464 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注册:hls://__defaultVhost__/stream/V3
+2025-04-21 09:01:17.134 W [MediaServer.exe] [8856-event poller 2] Stamp.cpp:298 getNtpStampUS | rtp stamp abnormal reduced:4115252604 -> 4114892960
+2025-04-21 09:01:17.163 W [MediaServer.exe] [8856-event poller 2] Stamp.cpp:298 getNtpStampUS | rtp stamp abnormal reduced:3233398342 -> 3232670062
+2025-04-21 09:01:21.404 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注销:hls://__defaultVhost__/stream/V1
+2025-04-21 09:01:21.405 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注销:ts://__defaultVhost__/stream/V1
+2025-04-21 09:01:21.405 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注销:rtmp://__defaultVhost__/stream/V1
+2025-04-21 09:01:21.405 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注销:fmp4://__defaultVhost__/stream/V1
+2025-04-21 09:01:21.405 I [MediaServer.exe] [8856-event poller 0] MediaSource.cpp:503 emitEvent | 媒体注销:rtsp://__defaultVhost__/stream/V1
+2025-04-21 09:01:21.405 W [MediaServer.exe] [8856-event poller 0] RtspSession.cpp:64 onError | 3-796(127.0.0.1:53642) RTSP推流器(__defaultVhost__/stream/V1)断开:recv teardown request,耗时(s):22
+2025-04-21 09:01:21.412 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:hls://__defaultVhost__/stream/V3
+2025-04-21 09:01:21.412 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:ts://__defaultVhost__/stream/V3
+2025-04-21 09:01:21.412 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:rtmp://__defaultVhost__/stream/V3
+2025-04-21 09:01:21.412 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:fmp4://__defaultVhost__/stream/V3
+2025-04-21 09:01:21.412 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:rtsp://__defaultVhost__/stream/V3
+2025-04-21 09:01:21.412 W [MediaServer.exe] [8856-event poller 2] RtspSession.cpp:64 onError | 7-816(127.0.0.1:53651) RTSP推流器(__defaultVhost__/stream/V3)断开:recv teardown request,耗时(s):22
+2025-04-21 09:01:21.422 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注销:hls://__defaultVhost__/stream/V4
+2025-04-21 09:01:21.422 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注销:ts://__defaultVhost__/stream/V4
+2025-04-21 09:01:21.422 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注销:rtmp://__defaultVhost__/stream/V4
+2025-04-21 09:01:21.423 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注销:fmp4://__defaultVhost__/stream/V4
+2025-04-21 09:01:21.423 I [MediaServer.exe] [8856-event poller 1] MediaSource.cpp:503 emitEvent | 媒体注销:rtsp://__defaultVhost__/stream/V4
+2025-04-21 09:01:21.423 W [MediaServer.exe] [8856-event poller 1] RtspSession.cpp:64 onError | 5-808(127.0.0.1:53646) RTSP推流器(__defaultVhost__/stream/V4)断开:recv teardown request,耗时(s):22
+2025-04-21 09:01:21.468 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:hls://__defaultVhost__/stream/V5
+2025-04-21 09:01:21.468 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:ts://__defaultVhost__/stream/V5
+2025-04-21 09:01:21.468 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:rtmp://__defaultVhost__/stream/V5
+2025-04-21 09:01:21.468 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:fmp4://__defaultVhost__/stream/V5
+2025-04-21 09:01:21.469 I [MediaServer.exe] [8856-event poller 2] MediaSource.cpp:503 emitEvent | 媒体注销:rtsp://__defaultVhost__/stream/V5
+2025-04-21 09:01:21.469 W [MediaServer.exe] [8856-event poller 2] RtspSession.cpp:64 onError | 9-820(127.0.0.1:53654) RTSP推流器(__defaultVhost__/stream/V5)断开:recv teardown request,耗时(s):22

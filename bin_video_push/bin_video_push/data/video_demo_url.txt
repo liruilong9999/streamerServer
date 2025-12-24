@@ -1,0 +1,2 @@
+0,video=screen-capture-recorder:audio=virtual-audio-capturer
+1,video=screen-capture-recorder:audio=virtual-audio-capturer

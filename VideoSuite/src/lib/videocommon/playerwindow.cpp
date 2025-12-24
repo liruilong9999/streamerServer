@@ -10,6 +10,8 @@
 
 #include <SDL2/SDL.h>
 
+#include <QLabel>
+
 extern "C"
 {
 #include <libavutil/imgutils.h>
@@ -57,7 +59,7 @@ PlayerWindow::PlayerWindow(bool isUseRightMouse, QWidget * parent)
         m_spliderPressed = true;
     });
 
-    m_pPlayerThread = new PlayerThread(m_frameQueue, this);
+    m_pPlayerThread = new PlayerThread(m_frameQueue, m_StrQueue, this);
 
     m_pFrameTimer = new QTimer(this);
     connect(m_pFrameTimer, &QTimer::timeout, this, &PlayerWindow::onTimerUpdate);
@@ -70,6 +72,20 @@ PlayerWindow::PlayerWindow(bool isUseRightMouse, QWidget * parent)
         // SDL暂停
         SDL_PauseAudio(1);
     });
+
+    m_label = new QLabel(this);
+
+    m_label->setGeometry(0, 0, 1500, 300);
+    QTimer * timerstr = new QTimer(this);
+    connect(timerstr, &QTimer::timeout, this, [&]() {
+        QString str;
+        if (!m_StrQueue.isEmpty())
+        {
+            m_StrQueue.dequeue(str);
+            m_label->setText(str);
+        }
+    });
+    timerstr->start(30);
 }
 
 PlayerWindow::~PlayerWindow()
@@ -143,6 +159,10 @@ void PlayerWindow::contextMenuEvent(QContextMenuEvent * event)
 
 void PlayerWindow::onTimerUpdate()
 {
+    if (m_frameQueue.isEmpty())
+    {
+        return;
+    }
     AVFrame * frame = nullptr;
     if (m_frameQueue.dequeue(frame))
     {

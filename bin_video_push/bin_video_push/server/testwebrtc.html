@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JSFiddle v24s8q1f</title>
+
+  <style>
+    table {
+  border-collapse: collapse;
+}
+td {
+  border: 1px solid black;
+  padding: 15px;
+}
+  </style>
+
+  
+</head>
+<body>
+  <div>
+  <p>
+    Your browser can publish or read with WebRTC...
+  </p>
+  <table id="table">
+  </table>
+
+</div>
+
+  <script>
+    
+let {codecs} = RTCRtpReceiver.getCapabilities('video');
+codecs = codecs.map((c) => c.mimeType.replace(/^video\//, ''));
+codecs = [...new Set(codecs)];
+
+codecs.forEach((codec) => {
+	const row = document.createElement('tr');
+  
+  const cell = document.createElement('td');
+  cell.innerHTML = codec;
+  row.appendChild(cell);
+  
+	document.getElementById("table").appendChild(row);
+});
+
+  </script>
+</body>
+</html>

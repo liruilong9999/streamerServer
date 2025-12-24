@@ -18,8 +18,8 @@ struct AVCodec;
 class PlayerThread : public QThread
 {
     Q_OBJECT
-public:
-    explicit PlayerThread(CircularQueue<AVFrame *> & frameQueue, QObject * parent = nullptr);
+public: 
+   explicit PlayerThread(CircularQueue<AVFrame *> & frameQueue, CircularQueue<QString> & strQueue, QObject * parent= nullptr);
     ~PlayerThread();
 
     bool openUrl(QString url, int & duration, int & fps); // 打开文件
@@ -44,7 +44,12 @@ private:
     AVCodecContext *  m_pCodecContext  = nullptr;
     AVCodec *         m_pCodec         = nullptr;
 
+    // 字幕相关
+    AVCodecContext * m_pSubtitleCodecContext = nullptr; // 👈 这里
+    int              m_subtitleStreamIndex   = -1;      // 👈 这里
+
     CircularQueue<AVFrame *> & m_frameQueue; // 帧队列
+    CircularQueue<QString> & m_StrQueue; // 帧队列
 
     int              m_videoStreamIndex = -1;
     std::string      m_filePath;

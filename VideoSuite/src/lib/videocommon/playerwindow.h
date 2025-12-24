@@ -62,6 +62,8 @@ private:
 
     CircularQueue<AVFrame *> m_frameQueue{6}; // 帧队列
 
+    CircularQueue<QString>  m_StrQueue{30}; //  
+
     bool   m_isUseRightMouse{false}; // 是否使用右键菜单
     int    m_duration{0};            // 视频时长（秒）
     int    m_fps{30};                // 视频帧率
@@ -70,6 +72,8 @@ private:
     unsigned m_frameSpace{40}; // 帧间隔（毫秒）
 
     bool m_spliderPressed{false}; // 滑块按下状态
+
+    QLabel * m_label;
 };
 
 #endif // PLAYERWINDOW_H

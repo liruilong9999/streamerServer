@@ -7,7 +7,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     PlayerWindow playerWindow(true);
 
-    playerWindow.openUrl("rtsp://127.0.0.1/video/test4.mp4");
+    playerWindow.openUrl("rtsp://admin:wo8023niy@192.168.1.64:554");
     playerWindow.show();
 
 
