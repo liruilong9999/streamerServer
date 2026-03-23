@@ -22,38 +22,12 @@ namespace
 {
 constexpr int64_t kMicrosecondsPerSecond = 1000000LL;
 
-/**
- * @brief FFmpeg 读流中断回调。
- * @param opaque 指向 std::atomic<bool> 的指针。
- * @return 1 表示中断；0 表示继续。
- */
 int interruptReadCallback(void * opaque)
 {
     auto * running = static_cast<std::atomic<bool> *>(opaque);
     return (running != nullptr && !running->load()) ? 1 : 0;
 }
 
-/**
- * @brief 获取包时间戳（优先 pts，缺失时回退 dts）。
- */
-int64_t packetTimestamp(const AVPacket * packet)
-{
-    if (packet == nullptr)
-    {
-        return AV_NOPTS_VALUE;
-    }
-
-    if (packet->pts != AV_NOPTS_VALUE)
-    {
-        return packet->pts;
-    }
-
-    return packet->dts;
-}
-
-/**
- * @brief FFmpeg 错误码转可读文本。
- */
 QString ffmpegErrorString(int errorCode)
 {
     char errorBuffer[AV_ERROR_MAX_STRING_SIZE] = {0};
@@ -61,9 +35,6 @@ QString ffmpegErrorString(int errorCode)
     return QString::fromLocal8Bit(errorBuffer);
 }
 
-/**
- * @brief 释放输出上下文（不写 trailer）。
- */
 void freeOutputContext(AVFormatContext ** outputCtx)
 {
     if (outputCtx == nullptr || *outputCtx == nullptr)
@@ -80,9 +51,6 @@ void freeOutputContext(AVFormatContext ** outputCtx)
     *outputCtx = nullptr;
 }
 
-/**
- * @brief 关闭输出上下文（写 trailer + 释放）。
- */
 void closeOutputContext(AVFormatContext ** outputCtx)
 {
     if (outputCtx == nullptr || *outputCtx == nullptr)
@@ -94,25 +62,16 @@ void closeOutputContext(AVFormatContext ** outputCtx)
     freeOutputContext(outputCtx);
 }
 
-/**
- * @brief 仅为视频流创建一个输出 MP4 上下文。
- * @param inputCtx 输入上下文。
- * @param videoStreamIndex 输入视频流索引。
- * @param outputFile 输出文件路径。
- * @param outputCtx 输出上下文。
- * @param errorCode 错误码。
- * @return true 成功。
- * @return false 失败。
- */
-bool createVideoOnlyOutputContext(AVFormatContext * inputCtx,
-                                  int               videoStreamIndex,
-                                  const QString &   outputFile,
+bool createVideoOnlyOutputContext(AVFormatContext *  inputCtx,
+                                  int                videoStreamIndex,
+                                  const QString &    outputFile,
                                   AVFormatContext ** outputCtx,
                                   int &              errorCode)
 {
     errorCode = 0;
 
-    if (inputCtx == nullptr || outputCtx == nullptr || videoStreamIndex < 0 || videoStreamIndex >= static_cast<int>(inputCtx->nb_streams))
+    if (inputCtx == nullptr || outputCtx == nullptr || videoStreamIndex < 0
+        || videoStreamIndex >= static_cast<int>(inputCtx->nb_streams))
     {
         errorCode = AVERROR(EINVAL);
         return false;
@@ -166,12 +125,7 @@ bool createVideoOnlyOutputContext(AVFormatContext * inputCtx,
     errorCode = avformat_write_header(*outputCtx, nullptr);
     if (errorCode < 0)
     {
-        if (!((*outputCtx)->oformat->flags & AVFMT_NOFILE))
-        {
-            avio_closep(&((*outputCtx)->pb));
-        }
-        avformat_free_context(*outputCtx);
-        *outputCtx = nullptr;
+        freeOutputContext(outputCtx);
         return false;
     }
 
@@ -228,7 +182,8 @@ bool VideoCaptureManager::start(const QString & rtspUrl,
     QThread::start();
 
     qDebug() << "采集线程已启动。RTSP:" << rtspUrl << "保存目录:" << normalizedSaveDir
-             << "分段时长(秒):" << segmentDurationSec << "磁盘阈值(GB):" << diskThresholdGB
+             << "分段时长(秒):" << segmentDurationSec
+             << "磁盘阈值(GB):" << diskThresholdGB
              << "目标总时长(秒):" << targetDurationSec;
     return true;
 }
@@ -273,18 +228,19 @@ void VideoCaptureManager::run()
         targetDurationSec  = m_targetDuration;
     }
 
-    AVFormatContext * inputCtx     = nullptr;
-    AVFormatContext * outputCtx = nullptr;
+    AVFormatContext * inputCtx         = nullptr;
+    AVFormatContext * outputCtx        = nullptr;
     int               videoStreamIndex = -1;
     int               segmentIndex     = 0;
 
-    bool    waitingKeyFrame = true;
-    bool    pendingRotate   = false;
-    int64_t segmentStartPts = AV_NOPTS_VALUE;
-    int64_t segmentStartDts = AV_NOPTS_VALUE;
+    bool      waitingKeyFrame = true;
+    bool      pendingRotate   = false;
+    int64_t   segmentStartPts = AV_NOPTS_VALUE;
+    int64_t   segmentStartDts = AV_NOPTS_VALUE;
 
     const int64_t segmentDurationUs = static_cast<int64_t>(segmentDurationSec) * kMicrosecondsPerSecond;
-    const int64_t targetDurationUs  = (targetDurationSec == 0) ? 0 : static_cast<int64_t>(targetDurationSec) * kMicrosecondsPerSecond;
+    const int64_t targetDurationUs =
+        (targetDurationSec == 0) ? 0 : static_cast<int64_t>(targetDurationSec) * kMicrosecondsPerSecond;
 
     const SteadyClock::time_point recordStartWall = SteadyClock::now();
     SteadyClock::time_point       segmentStartWall = recordStartWall;
@@ -298,11 +254,11 @@ void VideoCaptureManager::run()
     }
 
     auto resetSegmentState = [&]() {
-        waitingKeyFrame   = true;
-        pendingRotate     = false;
-        segmentStartPts   = AV_NOPTS_VALUE;
-        segmentStartDts   = AV_NOPTS_VALUE;
-        segmentStartWall  = SteadyClock::now();
+        waitingKeyFrame = true;
+        pendingRotate   = false;
+        segmentStartPts = AV_NOPTS_VALUE;
+        segmentStartDts = AV_NOPTS_VALUE;
+        segmentStartWall = SteadyClock::now();
     };
 
     auto closeInput = [&]() {
@@ -372,7 +328,7 @@ void VideoCaptureManager::run()
             qDebug() << "未检测到有效帧率，使用默认帧率 25 fps。";
         }
 
-        qDebug() << "RTSP 已连接。视频流索引:" << videoStreamIndex << "检测帧率:" << m_fps;
+        qDebug() << "RTSP 已连接。视频流索引:" << videoStreamIndex << "fps:" << m_fps;
         return true;
     };
 
@@ -381,7 +337,7 @@ void VideoCaptureManager::run()
         const int64_t wallElapsedUs = duration_cast<microseconds>(SteadyClock::now() - recordStartWall).count();
         if (targetDurationUs > 0 && wallElapsedUs >= targetDurationUs)
         {
-            qDebug() << "已达到目标本机时长(秒):" << targetDurationSec << "结束录制。";
+            qDebug() << "达到目标录制时长(墙钟秒):" << targetDurationSec << "停止录制。";
             break;
         }
 
@@ -406,7 +362,7 @@ void VideoCaptureManager::run()
             if (segmentWallElapsedUs >= segmentDurationUs)
             {
                 pendingRotate = true;
-                qDebug() << "达到分段本机时长，等待关键帧切片。";
+                qDebug() << "达到分段时长，等待关键帧切片。";
             }
         }
 
@@ -456,7 +412,7 @@ void VideoCaptureManager::run()
         {
             closeOutputContext(&outputCtx);
             resetSegmentState();
-            qDebug() << "按本机时间切换到新分段文件。";
+            qDebug() << "切换到新分段文件。";
         }
 
         if (waitingKeyFrame)
@@ -478,11 +434,11 @@ void VideoCaptureManager::run()
                 break;
             }
 
-            waitingKeyFrame   = false;
-            segmentStartPts   = packet->pts;
-            segmentStartDts   = packet->dts;
-            pendingRotate     = false;
-            segmentStartWall  = SteadyClock::now();
+            waitingKeyFrame = false;
+            pendingRotate   = false;
+            segmentStartPts = packet->pts;
+            segmentStartDts = packet->dts;
+            segmentStartWall = SteadyClock::now();
 
             qDebug() << "开始写入分段文件:" << outputFile;
         }
@@ -495,8 +451,6 @@ void VideoCaptureManager::run()
 
         AVStream * inStream  = inputCtx->streams[videoStreamIndex];
         AVStream * outStream = outputCtx->streams[0];
-
-        AVRounding rnd = static_cast<AVRounding>(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
 
         if (packet->pts != AV_NOPTS_VALUE)
         {
@@ -561,8 +515,10 @@ void VideoCaptureManager::run()
     closeInput();
 
     m_isRunning.store(false);
-    const double wallSeconds = duration_cast<microseconds>(SteadyClock::now() - recordStartWall).count() / static_cast<double>(kMicrosecondsPerSecond);
-    qDebug() << "采集线程退出。本机经过时长(秒):" << wallSeconds;
+    const double wallSeconds =
+        duration_cast<microseconds>(SteadyClock::now() - recordStartWall).count()
+        / static_cast<double>(kMicrosecondsPerSecond);
+    qDebug() << "采集线程退出。墙钟耗时(秒):" << wallSeconds;
 }
 
 bool VideoCaptureManager::validateStartParams(const QString & rtspUrl,
@@ -604,6 +560,12 @@ bool VideoCaptureManager::validateStartParams(const QString & rtspUrl,
         return false;
     }
 
+    if (targetDurationSec > 24U * 3600U)
+    {
+        errorMessage = QStringLiteral("目标总时长不能超过 86400 秒。");
+        return false;
+    }
+
     return true;
 }
 
@@ -629,7 +591,6 @@ QString VideoCaptureManager::nextOutputFilePath(int segmentIndex) const
 
     const QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz");
     const QString fileName  = QString("%1_part_%2.mp4").arg(timestamp).arg(segmentIndex, 4, 10, QChar('0'));
-
     return QDir(m_outputDir).filePath(fileName);
 }
 
@@ -648,11 +609,11 @@ void VideoCaptureManager::manageDiskSpace(const QString & outputDir)
         return;
     }
 
-    qDebug() << "磁盘剩余空间不足，开始清理旧分段文件。";
+    qDebug() << "磁盘剩余空间不足，开始清理旧分段文件。当前空闲字节:" << freeBytes
+             << "阈值字节:" << thresholdBytes;
 
     QDir dir(outputDir);
     QFileInfoList files = dir.entryInfoList(QStringList() << "*.mp4", QDir::Files, QDir::Time | QDir::Reversed);
-
     for (const QFileInfo & file : files)
     {
         if (freeBytes >= thresholdBytes)
@@ -663,21 +624,26 @@ void VideoCaptureManager::manageDiskSpace(const QString & outputDir)
         if (QFile::remove(file.absoluteFilePath()))
         {
             freeBytes = QStorageInfo(outputDir).bytesFree();
-            qDebug() << "已删除旧文件:" << file.absoluteFilePath();
+            qDebug() << "已删除旧文件:" << file.absoluteFilePath() << "删除后空闲字节:" << freeBytes;
         }
+    }
+
+    if (freeBytes < thresholdBytes)
+    {
+        qDebug() << "清理后磁盘空间仍低于阈值，可能影响后续录制。当前空闲字节:" << freeBytes;
     }
 }
 
 int VideoCaptureManager::detectFps(AVFormatContext * inputCtx, int videoStreamIndex) const
 {
-    if (inputCtx == nullptr || videoStreamIndex < 0 || videoStreamIndex >= static_cast<int>(inputCtx->nb_streams))
+    if (inputCtx == nullptr || videoStreamIndex < 0
+        || videoStreamIndex >= static_cast<int>(inputCtx->nb_streams))
     {
         return 0;
     }
 
     AVStream * stream = inputCtx->streams[videoStreamIndex];
-
-    double fps = 0.0;
+    double     fps    = 0.0;
 
     const AVRational guessed = av_guess_frame_rate(inputCtx, stream, nullptr);
     if (guessed.num > 0 && guessed.den > 0)
