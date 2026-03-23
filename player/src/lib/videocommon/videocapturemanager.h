@@ -127,23 +127,18 @@ private:
     int detectFps(AVFormatContext * inputCtx, int videoStreamIndex) const;
 
 private:
-    // 保护 start()/run() 之间共享状态（URL、目录、配置参数）。
-    mutable QMutex m_stateMutex;
+    mutable QMutex m_stateMutex; ///< 保护 start()/run() 间共享状态（URL、目录、录制参数）。
 
-    // 输入输出配置。
-    QString m_inputUrl;
-    QString m_outputDir;
+    QString m_inputUrl;  ///< 当前 RTSP 输入地址（线程启动前写入，run() 中读取）。
+    QString m_outputDir; ///< 当前分段文件输出目录。
 
-    // 检测到的帧率（用于日志和调试观测）。
-    int m_fps{30};
+    int m_fps{30}; ///< 当前检测到的视频帧率，仅用于日志与调试观测。
 
-    // 录制参数。
-    unsigned m_segmentDuration{3600};
-    unsigned m_diskThresholdGB{10};
-    unsigned m_targetDuration{0};
+    unsigned m_segmentDuration{3600}; ///< 单段文件时长（秒）。
+    unsigned m_diskThresholdGB{10};   ///< 最低磁盘剩余阈值（GB），低于阈值触发清理。
+    unsigned m_targetDuration{0};     ///< 总录制目标时长（秒），0 表示不限制总时长。
 
-    // 线程运行状态，同时用于 FFmpeg interrupt_callback 中断阻塞读。
-    std::atomic<bool> m_isRunning{false};
+    std::atomic<bool> m_isRunning{false}; ///< 运行标志，同时用于 FFmpeg 阻塞读中断回调。
 };
 
 #endif // VIDEOCAPTUREMANAGER_H

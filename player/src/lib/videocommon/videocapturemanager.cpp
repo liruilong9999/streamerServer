@@ -27,8 +27,7 @@ extern "C"
 #include <libavutil/opt.h>
 }
 
-namespace
-{
+namespace {
 constexpr int64_t kMicrosecondsPerSecond = 1000000LL;
 
 // FFmpeg 阻塞读中断回调：当 m_isRunning 为 false 时中断 av_read_frame。
@@ -82,10 +81,11 @@ bool createVideoOnlyOutputContext(AVFormatContext *  inputCtx,
                                   AVFormatContext ** outputCtx,
                                   int &              errorCode)
 {
+    // 这里选择“仅复制视频流”而不转码，目的是最大化稳定性并降低 CPU 占用。
+    // 录制场景下优先保证连续落盘，比复杂多流封装更重要。
     errorCode = 0;
 
-    if (inputCtx == nullptr || outputCtx == nullptr || videoStreamIndex < 0
-        || videoStreamIndex >= static_cast<int>(inputCtx->nb_streams))
+    if (inputCtx == nullptr || outputCtx == nullptr || videoStreamIndex < 0 || videoStreamIndex >= static_cast<int>(inputCtx->nb_streams))
     {
         errorCode = AVERROR(EINVAL);
         return false;
@@ -94,7 +94,7 @@ bool createVideoOnlyOutputContext(AVFormatContext *  inputCtx,
     *outputCtx = nullptr;
 
     const QByteArray outputFileUtf8 = outputFile.toUtf8();
-    errorCode = avformat_alloc_output_context2(outputCtx, nullptr, nullptr, outputFileUtf8.constData());
+    errorCode                       = avformat_alloc_output_context2(outputCtx, nullptr, nullptr, outputFileUtf8.constData());
     if (errorCode < 0 || *outputCtx == nullptr)
     {
         if (errorCode >= 0)
@@ -170,6 +170,7 @@ bool VideoCaptureManager::start(const QString & rtspUrl,
     }
 
     QString errorMessage;
+    // 参数校验放在线程启动前：失败可立即返回，避免启动后半途报错导致状态复杂化。
     if (!validateStartParams(rtspUrl, saveDir, segmentDurationSec, diskThresholdGB, targetDurationSec, errorMessage))
     {
         qDebug() << "启动失败，参数不合法:" << errorMessage;
@@ -244,21 +245,21 @@ void VideoCaptureManager::run()
         targetDurationSec  = m_targetDuration;
     }
 
-    AVFormatContext * inputCtx         = nullptr;
-    AVFormatContext * outputCtx        = nullptr;
-    int               videoStreamIndex = -1;
-    int               segmentIndex     = 0;
+    AVFormatContext * inputCtx         = nullptr; // 输入 RTSP 上下文（可在重连后替换）。
+    AVFormatContext * outputCtx        = nullptr; // 当前分段输出上下文。
+    int               videoStreamIndex = -1;      // 输入视频流索引。
+    int               segmentIndex     = 0;       // 分段编号，自增用于生成文件名。
 
-    bool      waitingKeyFrame = true;
-    bool      pendingRotate   = false;
-    int64_t   segmentStartPts = AV_NOPTS_VALUE;
-    int64_t   segmentStartDts = AV_NOPTS_VALUE;
+    bool    waitingKeyFrame = true;           // 新分段打开后，先等待关键帧再写入。
+    bool    pendingRotate   = false;          // 达到分段时长后置位，等关键帧真正切段。
+    int64_t segmentStartPts = AV_NOPTS_VALUE; // 当前分段起始 PTS。
+    int64_t segmentStartDts = AV_NOPTS_VALUE; // 当前分段起始 DTS。
 
     const int64_t segmentDurationUs = static_cast<int64_t>(segmentDurationSec) * kMicrosecondsPerSecond;
     const int64_t targetDurationUs =
         (targetDurationSec == 0) ? 0 : static_cast<int64_t>(targetDurationSec) * kMicrosecondsPerSecond;
 
-    const SteadyClock::time_point recordStartWall = SteadyClock::now();
+    const SteadyClock::time_point recordStartWall  = SteadyClock::now();
     SteadyClock::time_point       segmentStartWall = recordStartWall;
 
     AVPacket * packet = av_packet_alloc();
@@ -271,14 +272,15 @@ void VideoCaptureManager::run()
 
     auto resetSegmentState = [&]() {
         // 切段后重置局部时间轴与关键帧等待状态。
-        waitingKeyFrame = true;
-        pendingRotate   = false;
-        segmentStartPts = AV_NOPTS_VALUE;
-        segmentStartDts = AV_NOPTS_VALUE;
+        waitingKeyFrame  = true;
+        pendingRotate    = false;
+        segmentStartPts  = AV_NOPTS_VALUE;
+        segmentStartDts  = AV_NOPTS_VALUE;
         segmentStartWall = SteadyClock::now();
     };
 
     auto closeInput = [&]() {
+        // 统一输入收尾函数：重连和退出都走同一条路径，减少遗漏释放分支。
         if (inputCtx != nullptr)
         {
             avformat_close_input(&inputCtx);
@@ -345,6 +347,7 @@ void VideoCaptureManager::run()
         m_fps = detectFps(inputCtx, videoStreamIndex);
         if (m_fps <= 0)
         {
+            // 某些 RTSP 源不会稳定上报帧率，这里给保守默认值避免后续日志/计算异常。
             m_fps = 25;
             qDebug() << "未检测到有效帧率，使用默认帧率 25 fps。";
         }
@@ -418,6 +421,7 @@ void VideoCaptureManager::run()
                 resetSegmentState();
             }
 
+            // 关闭输入并走重连，原因是网络层错误通常不可通过继续 read_frame 自愈。
             closeInput();
 
             if (m_isRunning.load())
@@ -446,6 +450,7 @@ void VideoCaptureManager::run()
         {
             if (!(packet->flags & AV_PKT_FLAG_KEY))
             {
+                // 新分段必须从关键帧开始，避免播放器首帧解码失败或花屏。
                 av_packet_unref(packet);
                 continue;
             }
@@ -461,10 +466,10 @@ void VideoCaptureManager::run()
                 break;
             }
 
-            waitingKeyFrame = false;
-            pendingRotate   = false;
-            segmentStartPts = packet->pts;
-            segmentStartDts = packet->dts;
+            waitingKeyFrame  = false;
+            pendingRotate    = false;
+            segmentStartPts  = packet->pts;
+            segmentStartDts  = packet->dts;
             segmentStartWall = SteadyClock::now();
 
             qDebug() << "开始写入分段文件:" << outputFile;
@@ -522,6 +527,7 @@ void VideoCaptureManager::run()
         }
 
         // 最后按输入/输出 time_base 进行重标定后写入文件。
+        // 即使当前实现 time_base 相同，也保留该步骤，便于后续容器/参数调整时保持正确。
         av_packet_rescale_ts(packet, inStream->time_base, outStream->time_base);
         packet->stream_index = 0;
         packet->pos          = -1;
@@ -545,8 +551,7 @@ void VideoCaptureManager::run()
 
     m_isRunning.store(false);
     const double wallSeconds =
-        duration_cast<microseconds>(SteadyClock::now() - recordStartWall).count()
-        / static_cast<double>(kMicrosecondsPerSecond);
+        duration_cast<microseconds>(SteadyClock::now() - recordStartWall).count() / static_cast<double>(kMicrosecondsPerSecond);
     qDebug() << "采集线程退出。墙钟耗时(秒):" << wallSeconds;
 }
 
@@ -632,6 +637,7 @@ void VideoCaptureManager::manageDiskSpace(const QString & outputDir)
         return;
     }
 
+    // 录制是长时间任务，统一转换为字节阈值后可直接和系统剩余空间比较。
     const qint64 thresholdBytes = static_cast<qint64>(m_diskThresholdGB) * 1024LL * 1024LL * 1024LL;
     qint64       freeBytes      = QStorageInfo(outputDir).bytesFree();
 
@@ -668,8 +674,7 @@ void VideoCaptureManager::manageDiskSpace(const QString & outputDir)
 
 int VideoCaptureManager::detectFps(AVFormatContext * inputCtx, int videoStreamIndex) const
 {
-    if (inputCtx == nullptr || videoStreamIndex < 0
-        || videoStreamIndex >= static_cast<int>(inputCtx->nb_streams))
+    if (inputCtx == nullptr || videoStreamIndex < 0 || videoStreamIndex >= static_cast<int>(inputCtx->nb_streams))
     {
         return 0;
     }
