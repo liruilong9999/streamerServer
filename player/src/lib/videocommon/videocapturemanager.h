@@ -15,13 +15,14 @@
 struct AVFormatContext;
 
 /**
- * @brief RTSP 视频录制管理器。
+ * @brief RTSP 视频录制管理器（基于 QThread + FFmpeg）。
  *
- * 功能说明：
- * 1. 在独立线程中从 RTSP 拉流并保存 MP4 文件，不阻塞主线程。
- * 2. 自动探测视频流帧率。
- * 3. 按指定时长切片保存（例如 3600 秒一个文件）。
- * 4. 根据磁盘剩余空间阈值自动清理旧文件。
+ * 设计目标：
+ * 1. 在独立线程内持续拉取 RTSP 视频流并写入 MP4 文件。
+ * 2. 支持按分段时长切片（在关键帧切段，保证文件可播放性）。
+ * 3. 支持磁盘阈值清理，避免持续录制导致磁盘写满。
+ * 4. 支持目标录制总时长（按墙钟时间控制停止）。
+ * 5. 支持网络抖动自动重连。
  */
 class VIDEOCOMMON_EXPORT VideoCaptureManager : public QThread
 {
@@ -30,54 +31,44 @@ class VIDEOCOMMON_EXPORT VideoCaptureManager : public QThread
 public:
     /**
      * @brief 构造函数。
-     * @param parent Qt 父对象。
+     * @param parent Qt 父对象指针。
      */
     explicit VideoCaptureManager(QObject * parent = nullptr);
 
     /**
-     * @brief 析构函数，析构前会自动停止采集线程。
+     * @brief 析构函数。析构时会主动调用 stop() 并等待线程退出。
      */
     ~VideoCaptureManager() override;
 
     /**
-     * @brief 启动录制任务。
-     *
-     * 参数通过外部接口传入，不依赖配置文件。
-     * 该函数会先做参数合理性校验，校验通过后启动线程。
-     *
-     * @param rtspUrl RTSP 地址，必须以 rtsp:// 开头。
-     * @param saveDir 保存目录，不能为空。
-     * @param segmentDurationSec 单个文件时长（秒），范围 1~86400。
-     * @param diskThresholdGB 磁盘阈值（GB），范围 1~1024。
-     * @param targetDurationSec 目标总录制时长（秒），为 0 表示持续录制直到外部 stop。
+     * @brief 启动视频采集任务。
+     * @param rtspUrl RTSP 流地址，必须以 rtsp:// 开头。
+     * @param saveDir 录像保存目录，目录不存在时会尝试创建。
+     * @param segmentDurationSec 单个分段文件时长（秒），范围 1~86400。
+     * @param diskThresholdGB 磁盘剩余空间阈值（GB），低于阈值时会清理旧文件。
+     * @param targetDurationSec 目标总录制时长（秒），0 表示不限时长持续录制。
      * @return true 启动成功。
-     * @return false 启动失败（参数不合法或线程已在运行）。
+     * @return false 启动失败（参数不合法、目录不可用或线程已在运行）。
      */
     bool start(const QString & rtspUrl,
                const QString & saveDir,
                unsigned        segmentDurationSec,
-               unsigned        diskThresholdGB  = 10,
+               unsigned        diskThresholdGB   = 10,
                unsigned        targetDurationSec = 0);
 
     /**
-     * @brief 停止录制任务并等待线程退出。
+     * @brief 停止采集任务并等待线程退出。
      */
     void stop();
 
     /**
-     * @brief 兼容旧接口：使用默认参数启动录制。
-     *
-     * 默认参数：
-     * - saveDir: video
-     * - segmentDurationSec: 3600
-     * - diskThresholdGB: 10
-     *
-     * @param inputUrl RTSP 地址。
+     * @brief 旧接口兼容入口：使用默认参数启动录制。
+     * @param inputUrl RTSP 流地址。
      */
     void startCapture(const QString & inputUrl);
 
     /**
-     * @brief 兼容旧接口：停止录制。
+     * @brief 旧接口兼容入口：停止录制。
      */
     void stopCapture();
 
@@ -89,13 +80,13 @@ protected:
 
 private:
     /**
-     * @brief 校验启动参数是否合法。
-     * @param rtspUrl RTSP 地址。
+     * @brief 校验 start() 参数合法性。
+     * @param rtspUrl RTSP 流地址。
      * @param saveDir 保存目录。
-     * @param segmentDurationSec 单文件时长（秒）。
+     * @param segmentDurationSec 分段时长（秒）。
      * @param diskThresholdGB 磁盘阈值（GB）。
-     * @param targetDurationSec 目标总录制时长（秒），0 表示不限时长。
-     * @param errorMessage 错误信息（中文）。
+     * @param targetDurationSec 目标总时长（秒）。
+     * @param errorMessage 校验失败时输出错误描述。
      * @return true 参数合法。
      * @return false 参数不合法。
      */
@@ -109,26 +100,26 @@ private:
     /**
      * @brief 确保保存目录存在。
      * @param dirPath 保存目录路径。
-     * @return true 目录已存在或创建成功。
-     * @return false 创建失败。
+     * @return true 目录可用（存在或创建成功）。
+     * @return false 目录不可用。
      */
     bool prepareSaveDir(const QString & dirPath);
 
     /**
-     * @brief 生成新分段文件路径。
-     * @param segmentIndex 分段编号（从 1 开始）。
-     * @return 文件路径。
+     * @brief 生成下一段 MP4 文件路径。
+     * @param segmentIndex 分段序号（从 1 开始）。
+     * @return 输出文件完整路径。
      */
     QString nextOutputFilePath(int segmentIndex) const;
 
     /**
-     * @brief 根据磁盘阈值清理旧文件。
+     * @brief 根据磁盘阈值清理旧分段文件。
      * @param outputDir 输出目录。
      */
     void manageDiskSpace(const QString & outputDir);
 
     /**
-     * @brief 检测 RTSP 视频流帧率。
+     * @brief 检测视频流帧率，优先使用 FFmpeg 推测值。
      * @param inputCtx 输入格式上下文。
      * @param videoStreamIndex 视频流索引。
      * @return 帧率（整数），失败返回 0。
@@ -136,18 +127,23 @@ private:
     int detectFps(AVFormatContext * inputCtx, int videoStreamIndex) const;
 
 private:
-    mutable QMutex m_stateMutex; ///< 保护共享状态。
+    // 保护 start()/run() 之间共享状态（URL、目录、配置参数）。
+    mutable QMutex m_stateMutex;
 
-    QString m_inputUrl;  ///< 当前 RTSP 地址。
-    QString m_outputDir; ///< 当前保存目录。
+    // 输入输出配置。
+    QString m_inputUrl;
+    QString m_outputDir;
 
-    int m_fps{30}; ///< 当前检测帧率（仅日志/统计）。
+    // 检测到的帧率（用于日志和调试观测）。
+    int m_fps{30};
 
-    unsigned m_segmentDuration{3600}; ///< 单文件时长（秒）。
-    unsigned m_diskThresholdGB{10};   ///< 磁盘清理阈值（GB）。
-    unsigned m_targetDuration{0};     ///< 总录制时长（秒），0 表示不限时长。
+    // 录制参数。
+    unsigned m_segmentDuration{3600};
+    unsigned m_diskThresholdGB{10};
+    unsigned m_targetDuration{0};
 
-    std::atomic<bool> m_isRunning{false}; ///< 运行标志，同时用于中断 FFmpeg 阻塞读取。
+    // 线程运行状态，同时用于 FFmpeg interrupt_callback 中断阻塞读。
+    std::atomic<bool> m_isRunning{false};
 };
 
 #endif // VIDEOCAPTUREMANAGER_H

@@ -1,3 +1,12 @@
+/*
+ * VideoCaptureManager 录制主流程说明（仅针对本类）：
+ * 1. start() 校验参数并缓存运行配置，然后启动线程。
+ * 2. run() 在线程内按需建立 RTSP 连接，自动检测视频流与帧率。
+ * 3. 按墙钟时间判断是否达到目标总时长；按关键帧进行分段切片。
+ * 4. 每次新建分段前执行磁盘阈值检查，必要时删除最旧 MP4 文件。
+ * 5. 写入前将 PTS/DTS 归一化到分段局部时间轴，确保每段从 0 附近开始。
+ * 6. 遇到网络异常/EOF 自动重连，stop() 或达到目标时长后安全收尾退出。
+ */
 #include "videocapturemanager.h"
 
 #include <QDateTime>
@@ -22,12 +31,14 @@ namespace
 {
 constexpr int64_t kMicrosecondsPerSecond = 1000000LL;
 
+// FFmpeg 阻塞读中断回调：当 m_isRunning 为 false 时中断 av_read_frame。
 int interruptReadCallback(void * opaque)
 {
     auto * running = static_cast<std::atomic<bool> *>(opaque);
     return (running != nullptr && !running->load()) ? 1 : 0;
 }
 
+// 将 FFmpeg 错误码转为可读字符串，便于日志定位问题。
 QString ffmpegErrorString(int errorCode)
 {
     char errorBuffer[AV_ERROR_MAX_STRING_SIZE] = {0};
@@ -35,6 +46,7 @@ QString ffmpegErrorString(int errorCode)
     return QString::fromLocal8Bit(errorBuffer);
 }
 
+// 释放输出上下文（包含可能已打开的 IO 句柄）。
 void freeOutputContext(AVFormatContext ** outputCtx)
 {
     if (outputCtx == nullptr || *outputCtx == nullptr)
@@ -51,6 +63,7 @@ void freeOutputContext(AVFormatContext ** outputCtx)
     *outputCtx = nullptr;
 }
 
+// 正常关闭输出：先写 trailer 再释放上下文。
 void closeOutputContext(AVFormatContext ** outputCtx)
 {
     if (outputCtx == nullptr || *outputCtx == nullptr)
@@ -62,6 +75,7 @@ void closeOutputContext(AVFormatContext ** outputCtx)
     freeOutputContext(outputCtx);
 }
 
+// 仅创建“视频流”输出上下文：复制 codecpar 并准备写 MP4 头。
 bool createVideoOnlyOutputContext(AVFormatContext *  inputCtx,
                                   int                videoStreamIndex,
                                   const QString &    outputFile,
@@ -148,6 +162,7 @@ bool VideoCaptureManager::start(const QString & rtspUrl,
                                 unsigned        diskThresholdGB,
                                 unsigned        targetDurationSec)
 {
+    // 防止重复启动线程，避免并发写文件与状态竞争。
     if (m_isRunning.load() || QThread::isRunning())
     {
         qDebug() << "采集任务已在运行，不能重复启动。";
@@ -169,6 +184,7 @@ bool VideoCaptureManager::start(const QString & rtspUrl,
     }
 
     {
+        // start() 与 run() 通过受保护状态交接参数。
         QMutexLocker locker(&m_stateMutex);
         m_inputUrl        = rtspUrl.trimmed();
         m_outputDir       = normalizedSaveDir;
@@ -220,6 +236,7 @@ void VideoCaptureManager::run()
     unsigned targetDurationSec  = 0;
 
     {
+        // 读取启动阶段缓存的配置快照，避免运行中读写冲突。
         QMutexLocker locker(&m_stateMutex);
         inputUrl           = m_inputUrl;
         outputDir          = m_outputDir;
@@ -253,6 +270,7 @@ void VideoCaptureManager::run()
     }
 
     auto resetSegmentState = [&]() {
+        // 切段后重置局部时间轴与关键帧等待状态。
         waitingKeyFrame = true;
         pendingRotate   = false;
         segmentStartPts = AV_NOPTS_VALUE;
@@ -270,6 +288,7 @@ void VideoCaptureManager::run()
     };
 
     auto openInput = [&]() -> bool {
+        // 每次重连都重新分配输入上下文，避免复用脏状态。
         inputCtx = avformat_alloc_context();
         if (inputCtx == nullptr)
         {
@@ -281,6 +300,10 @@ void VideoCaptureManager::run()
         inputCtx->interrupt_callback.opaque   = &m_isRunning;
 
         AVDictionary * options = nullptr;
+        // RTSP 拉流与时间戳相关选项：
+        // 1) 强制 TCP，降低丢包导致的时间轴抖动；
+        // 2) 读写超时，避免永久阻塞；
+        // 3) use_wallclock_as_timestamps + genpts，尽量稳定输出时间轴。
         av_dict_set(&options, "rtsp_transport", "tcp", 0);
         av_dict_set(&options, "stimeout", "5000000", 0);
         av_dict_set(&options, "rw_timeout", "5000000", 0);
@@ -330,8 +353,10 @@ void VideoCaptureManager::run()
         return true;
     };
 
+    // 主循环：时长控制 -> 连接维护 -> 读包 -> 切段 -> 写包。
     while (m_isRunning.load())
     {
+        // 目标总时长按墙钟计算，避免输入 PTS 与真实时间不一致。
         const int64_t wallElapsedUs = duration_cast<microseconds>(SteadyClock::now() - recordStartWall).count();
         if (targetDurationUs > 0 && wallElapsedUs >= targetDurationUs)
         {
@@ -356,6 +381,7 @@ void VideoCaptureManager::run()
 
         if (outputCtx != nullptr && !pendingRotate && segmentDurationUs > 0)
         {
+            // 分段时长先按墙钟触发，再等待关键帧真正切段。
             const int64_t segmentWallElapsedUs = duration_cast<microseconds>(SteadyClock::now() - segmentStartWall).count();
             if (segmentWallElapsedUs >= segmentDurationUs)
             {
@@ -367,6 +393,7 @@ void VideoCaptureManager::run()
         const int ret = av_read_frame(inputCtx, packet);
         if (ret == AVERROR(EAGAIN))
         {
+            // 暂时无包，短暂休眠避免空转占用 CPU。
             av_packet_unref(packet);
             QThread::msleep(5);
             continue;
@@ -386,6 +413,7 @@ void VideoCaptureManager::run()
 
             if (outputCtx != nullptr)
             {
+                // 输入异常时关闭当前分段，避免生成坏文件。
                 closeOutputContext(&outputCtx);
                 resetSegmentState();
             }
@@ -408,6 +436,7 @@ void VideoCaptureManager::run()
         const bool shouldRotateSegment = (!waitingKeyFrame && pendingRotate && (packet->flags & AV_PKT_FLAG_KEY));
         if (shouldRotateSegment)
         {
+            // 关键帧到达后执行切段，保证新文件从关键帧开始。
             closeOutputContext(&outputCtx);
             resetSegmentState();
             qDebug() << "切换到新分段文件。";
@@ -450,6 +479,7 @@ void VideoCaptureManager::run()
         AVStream * inStream  = inputCtx->streams[videoStreamIndex];
         AVStream * outStream = outputCtx->streams[0];
 
+        // 时间戳归一化：将每段时间轴平移到从 0 开始，避免跨段时间跳变。
         if (packet->pts != AV_NOPTS_VALUE)
         {
             if (segmentStartPts == AV_NOPTS_VALUE)
@@ -491,6 +521,7 @@ void VideoCaptureManager::run()
             packet->dts = packet->pts;
         }
 
+        // 最后按输入/输出 time_base 进行重标定后写入文件。
         av_packet_rescale_ts(packet, inStream->time_base, outStream->time_base);
         packet->stream_index = 0;
         packet->pos          = -1;
@@ -526,6 +557,7 @@ bool VideoCaptureManager::validateStartParams(const QString & rtspUrl,
                                               unsigned        targetDurationSec,
                                               QString &       errorMessage) const
 {
+    // 参数校验统一在启动前完成，避免线程中出现可预期失败。
     const QString normalizedUrl = rtspUrl.trimmed();
     if (normalizedUrl.isEmpty())
     {
@@ -596,6 +628,7 @@ void VideoCaptureManager::manageDiskSpace(const QString & outputDir)
 {
     if (m_diskThresholdGB == 0)
     {
+        // 阈值为 0 视为禁用磁盘清理策略。
         return;
     }
 
@@ -611,6 +644,7 @@ void VideoCaptureManager::manageDiskSpace(const QString & outputDir)
              << "阈值字节:" << thresholdBytes;
 
     QDir dir(outputDir);
+    // 按时间升序（最旧在前）尝试删除，直到空间恢复到阈值以上。
     QFileInfoList files = dir.entryInfoList(QStringList() << "*.mp4", QDir::Files, QDir::Time | QDir::Reversed);
     for (const QFileInfo & file : files)
     {
@@ -643,6 +677,7 @@ int VideoCaptureManager::detectFps(AVFormatContext * inputCtx, int videoStreamIn
     AVStream * stream = inputCtx->streams[videoStreamIndex];
     double     fps    = 0.0;
 
+    // 优先级：guessed > avg_frame_rate > r_frame_rate。
     const AVRational guessed = av_guess_frame_rate(inputCtx, stream, nullptr);
     if (guessed.num > 0 && guessed.den > 0)
     {
