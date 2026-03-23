@@ -116,8 +116,7 @@ bool createVideoOnlyOutputContext(AVFormatContext *  inputCtx,
         errorCode = avio_open(&((*outputCtx)->pb), outputFileUtf8.constData(), AVIO_FLAG_WRITE);
         if (errorCode < 0)
         {
-            avformat_free_context(*outputCtx);
-            *outputCtx = nullptr;
+            freeOutputContext(outputCtx);
             return false;
         }
     }
@@ -299,8 +298,7 @@ void VideoCaptureManager::run()
             qDebug() << "打开 RTSP 输入失败:" << inputUrl << "错误:" << ffmpegErrorString(retOpen);
             if (inputCtx != nullptr)
             {
-                avformat_free_context(inputCtx);
-                inputCtx = nullptr;
+                avformat_close_input(&inputCtx);
             }
             return false;
         }
