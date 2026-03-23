@@ -38,6 +38,9 @@ protected:
     void run() override;
 
 private:
+    void releaseFfmpegContexts();
+    void clearFrameQueueAndReleaseFrames();
+
     void decode(); // 解码 所有帧
 
     bool openUrlRTSP(QString url, int & duration, int & fps); // 打开文件
