@@ -218,7 +218,7 @@ void VideoCaptureManager::stop()
 
 void VideoCaptureManager::startCapture(const QString & inputUrl)
 {
-    (void)start(inputUrl, QStringLiteral("video"), 3600, 10, 0);
+    (void)start(inputUrl, QString("video"), 3600, 10, 0);
 }
 
 void VideoCaptureManager::stopCapture()
@@ -566,38 +566,38 @@ bool VideoCaptureManager::validateStartParams(const QString & rtspUrl,
     const QString normalizedUrl = rtspUrl.trimmed();
     if (normalizedUrl.isEmpty())
     {
-        errorMessage = QStringLiteral("RTSP 地址不能为空。");
+        errorMessage = QString("RTSP 地址不能为空。");
         return false;
     }
 
-    if (!normalizedUrl.startsWith(QStringLiteral("rtsp://"), Qt::CaseInsensitive))
+    if (!normalizedUrl.startsWith(QString("rtsp://"), Qt::CaseInsensitive))
     {
-        errorMessage = QStringLiteral("仅支持 rtsp:// 开头的地址。");
+        errorMessage = QString("仅支持 rtsp:// 开头的地址。");
         return false;
     }
 
     const QString normalizedDir = saveDir.trimmed();
     if (normalizedDir.isEmpty())
     {
-        errorMessage = QStringLiteral("保存目录不能为空。");
+        errorMessage = QString("保存目录不能为空。");
         return false;
     }
 
     if (segmentDurationSec < 1 || segmentDurationSec > 24U * 3600U)
     {
-        errorMessage = QStringLiteral("单文件时长必须在 1~86400 秒之间。");
+        errorMessage = QString("单文件时长必须在 1~86400 秒之间。");
         return false;
     }
 
     if (diskThresholdGB < 1 || diskThresholdGB > 1024)
     {
-        errorMessage = QStringLiteral("磁盘阈值必须在 1~1024 GB 之间。");
+        errorMessage = QString("磁盘阈值必须在 1~1024 GB 之间。");
         return false;
     }
 
     if (targetDurationSec > 24U * 3600U)
     {
-        errorMessage = QStringLiteral("目标总时长不能超过 86400 秒。");
+        errorMessage = QString("目标总时长不能超过 86400 秒。");
         return false;
     }
 
