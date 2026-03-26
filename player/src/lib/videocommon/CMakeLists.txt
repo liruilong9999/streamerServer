@@ -1,18 +1,16 @@
 # 引入外部函数
 include(${ROOT_DIR}/cmake/module.cmake)
 
-# 获取绝对路径
+# 获取文件名称
 set(AbsolutePathProject ${CMAKE_CURRENT_SOURCE_DIR})
 get_filename_component(ProjectName ${AbsolutePathProject} NAME)
- 
-set(QT_LIBRARY_LIST "Core" "Gui" "Widgets" "Network" "Concurrent")
+# Qt 库
+set(QT_LIBRARY_LIST "Core" "Gui" "Widgets")
 
-set(SELF_LIBRARY_LIST_DEBUG "Ws2_32"  "avcodec" "avdevice" "avfilter" "avformat" "avutil" "swscale" "swresample" "SDL2")
-
-set(SELF_LIBRARY_LIST_RELEASE "Ws2_32"  "avcodec" "avdevice" "avfilter" "avformat" "avutil" "swscale" "swresample"  "SDL2")
-
+# 链接库
+set(SELF_LIBRARY_LIST "avcodec" "avdevice" "avfilter" "avformat" "avutil" "SDL2d" "SDL2")
+# 预编译
 add_compile_definitions(VIDEOCOMMON_LIBRARY)
- 
-# 创建项目 
-CreateTarget(${ProjectName} "Dll")    
- 
+
+# 创建项目
+CreateTarget(${ProjectName} "Dll")

@@ -367,7 +367,7 @@ void VideoCaptureManager::run()
             break;
         }
 
-        if (inputCtx == nullptr)
+        if (nullptr == inputCtx)
         {
             if (!openInput())
             {

@@ -1,3 +1,8 @@
+/*!
+ * \file  .\src\lib\videocommon\playerwindow.cpp.
+ *
+ * Implements the playerwindow class
+ */
 
 #include <QDebug>
 #include <QMenu>
@@ -25,13 +30,30 @@ extern "C"
 
 #include "playerwindow.h"
 
+/*!
+ * 播放窗口私有成员。
+ *
+ * \author bf
+ * \date 2025/8/5
+ */
+
 struct PlayerWindowPrivate
 {
     // 添加SDL相关成员
-    SDL_Window *   m_sdlWindow{nullptr};
-    SDL_Renderer * m_sdlRenderer{nullptr};
-    SDL_Texture *  m_sdlTexture{nullptr};
+    SDL_Window *   m_sdlWindow{nullptr};	///< SDL 窗口
+    SDL_Renderer * m_sdlRenderer{nullptr};  ///< SDL 渲染器
+    SDL_Texture *  m_sdlTexture{nullptr};   ///< SDL 纹理
 };
+
+/*!
+ * 初始化<see cref="PlayerWindow"/>类的新实例
+ *
+ * \author bf
+ * \date 2025/8/5
+ *
+ * \param 		   如果此对象使用右键鼠标
+ * \param [in,out] parent 如果非空，则为父对象。
+ */
 
 PlayerWindow::PlayerWindow(bool isUseRightMouse, QWidget * parent)
     : QWidget(parent)
@@ -40,6 +62,14 @@ PlayerWindow::PlayerWindow(bool isUseRightMouse, QWidget * parent)
     , m_isUseRightMouse(isUseRightMouse)
 {
     ui->setupUi(this);
+
+    setMouseTracking(false);
+
+    ui->widget->setAttribute(Qt::WA_PaintOnScreen,true);
+    ui->widget->setAttribute(Qt::WA_NoSystemBackground,true);
+    ui->widget->setAttribute(Qt::WA_OpaquePaintEvent,true);
+
+    ui->widget->setUpdatesEnabled(false);
 
     // 初始化SDL
     SDL_Init(SDL_INIT_VIDEO);
@@ -59,20 +89,21 @@ PlayerWindow::PlayerWindow(bool isUseRightMouse, QWidget * parent)
     //     m_spliderPressed = true;
     // });
 
-    m_pPlayerThread = new PlayerThread(m_frameQueue, m_StrQueue, this);
+    m_pPlayerThread = new PlayerThread(m_frameQueue, m_StrQueue);
 
     m_pFrameTimer = new QTimer(this);
     connect(m_pFrameTimer, &QTimer::timeout, this, &PlayerWindow::onTimerUpdate);
-    connect(m_pPlayerThread, &PlayerThread::openSuccess, this, [&](QString url, int duration, int fps) {
-        m_duration = duration;
-        m_fps      = fps;
+    connect(
+        m_pPlayerThread, &PlayerThread::openSuccess, this, [&](QString url, int duration, int fps) {
+            m_duration = duration;
+            m_fps      = fps;
 
-        m_currentPosition = 0;
-        m_frameSpace      = 1000.0 / m_fps;
-        m_pFrameTimer->setInterval(1000 / m_frameSpace);
-        m_pFrameTimer->start();
-    },
-            Qt::QueuedConnection);
+            m_currentPosition = 0;
+            m_frameSpace      = 1000.0 / m_fps;
+            m_pFrameTimer->setInterval(1000 / m_frameSpace);
+            m_pFrameTimer->start();
+        },
+        Qt::QueuedConnection);
     // connect(m_pPlayerThread, &PlayerThread::videoStopped, this, [&]() {
     //     m_pPlayerThread->stop();
     //     m_pFrameTimer->stop();
@@ -98,18 +129,40 @@ PlayerWindow::PlayerWindow(bool isUseRightMouse, QWidget * parent)
     // timerstr->start(30);
 }
 
+/*!
+ * 析构<see cref="PlayerWindow"/>类的实例
+ *
+ * \author bf
+ * \date 2025/8/5
+ */
+
 PlayerWindow::~PlayerWindow()
 {
-    m_pPlayerThread->stop();
+    m_pFrameTimer->stop();
 
     if (m_pPrivate->m_sdlTexture)
-        SDL_DestroyTexture(m_pPrivate->m_sdlTexture);
+         {SDL_DestroyTexture(m_pPrivate->m_sdlTexture);}
     if (m_pPrivate->m_sdlRenderer)
-        SDL_DestroyRenderer(m_pPrivate->m_sdlRenderer);
+        { SDL_DestroyRenderer(m_pPrivate->m_sdlRenderer);}
     SDL_Quit();
+
+    if (m_pPlayerThread)
+    {
+        delete m_pPlayerThread;
+        m_pPlayerThread = nullptr;
+    }
 
     delete ui;
 }
+
+/*!
+ * 打开URL。
+ *
+ * \author bf
+ * \date 2025/8/5
+ *
+ * \param  文档URL.
+ */
 
 void PlayerWindow::openUrl(QString url)
 {
@@ -123,6 +176,15 @@ void PlayerWindow::openUrl(QString url)
 
     // ui->label_duration->setText(time.toString("H:mm:ss"));//
 }
+
+/*!
+ * 上下文菜单事件
+ *
+ * \author bf
+ * \date 2025/8/5
+ *
+ * \param [in,out] event 若非空，event对象.
+ */
 
 void PlayerWindow::contextMenuEvent(QContextMenuEvent * event)
 {
@@ -159,22 +221,33 @@ void PlayerWindow::contextMenuEvent(QContextMenuEvent * event)
     }
 }
 
+void PlayerWindow::resizeEvent(QResizeEvent *event)
+{
+   // qDebug()<<"++++++++++++++++++++++++"<<size();
+    QWidget::resizeEvent(event);
+    SDL_SetWindowSize(m_pPrivate->m_sdlWindow,ui->widget->width(),ui->widget->height());
+}
+
+/*!
+ * 执行“计时器更新”动作
+ *
+ * \author bf
+ * \date 2025/8/5
+ */
+
 void PlayerWindow::onTimerUpdate()
 {
-    if (m_frameQueue.isEmpty())
-    {
-        return;
-    }
     AVFrame * frame = nullptr;
     if (m_frameQueue.dequeue(frame))
     {
         // 首次初始化纹理
-        if (!m_pPrivate->m_sdlTexture || m_videoWidth != frame->width || m_videoHeight != frame->height)
+        if ((nullptr == m_pPrivate->m_sdlTexture) || (m_videoWidth != frame->width) || (m_videoHeight != frame->height))
         {
             if (m_pPrivate->m_sdlTexture)
-                SDL_DestroyTexture(m_pPrivate->m_sdlTexture);
+               { SDL_DestroyTexture(m_pPrivate->m_sdlTexture);}
             m_videoWidth             = frame->width;
             m_videoHeight            = frame->height;
+            qDebug()<<"============="<<m_videoWidth<<m_videoHeight;
             m_pPrivate->m_sdlTexture = SDL_CreateTexture(
                 m_pPrivate->m_sdlRenderer,
                 SDL_PIXELFORMAT_YV12,
@@ -196,6 +269,10 @@ void PlayerWindow::onTimerUpdate()
 
         // 渲染到窗口
         SDL_RenderClear(m_pPrivate->m_sdlRenderer);
+
+
+//        SDL_Rect sdlRect{0,0,ui->widget->width(),ui->widget->height()};
+
         SDL_RenderCopy(m_pPrivate->m_sdlRenderer, m_pPrivate->m_sdlTexture, nullptr, nullptr);
         SDL_RenderPresent(m_pPrivate->m_sdlRenderer);
 
