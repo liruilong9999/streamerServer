@@ -9,25 +9,10 @@
 
 #include <QtCore/qglobal.h>
 
-#if defined(VIDEOCOMMON_LIBRARY)
-
-/*!
- * 宏定义 videocommon 导出
- *
- * \author bf
- * \date 2025/8/5
- */
+#if defined(VIDEOCOMMON_LIBRARY) 
 
 #define VIDEOCOMMON_EXPORT Q_DECL_EXPORT
-#else
-
-/*!
- * 宏定义 videocommon 导出
- *
- * \author bf
- * \date 2025/8/5
- */
-
+#else 
 #define VIDEOCOMMON_EXPORT Q_DECL_IMPORT
 #endif
 
